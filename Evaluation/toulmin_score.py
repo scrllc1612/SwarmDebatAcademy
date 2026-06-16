@@ -53,7 +53,7 @@ SPANISH_STOPWORDS = {
 class ToulminScorer:
     def __init__(
         self,
-        model_name: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+        model_name: str = "sentence-transformers/paraphrase-MiniLM-L3-v2",
         weights: ScoreWeights | None = None,
     ) -> None:
         self.model_name = model_name
