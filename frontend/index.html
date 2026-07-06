@@ -9,172 +9,140 @@
 </head>
 
 <body>
-
   <main class="app-shell">
-
     <aside class="sidebar" aria-label="Debates guardados">
-
       <div class="brand">
-        <span class="brand-mark">D</span>
+        <span class="brand-mark" aria-hidden="true">D</span>
         <div>
-          <strong>Debates</strong>
+          <strong>DebateLab</strong>
           <span>Repositorio academico</span>
         </div>
       </div>
 
-      <button class="secondary-action" id="refreshDebates" type="button">
-        Actualizar lista
+      <button class="btn btn-secondary btn-full" id="refreshDebates" type="button">
+        <span class="btn-icon" aria-hidden="true">R</span>
+        Actualizar
       </button>
 
-      <div class="debate-list" id="debateList">
+      <div class="sidebar-section">
+        <p class="section-label">Debates recientes</p>
+        <div class="debate-list" id="debateList"></div>
       </div>
-
     </aside>
 
     <section class="workspace">
-
       <header class="topbar">
-
         <div>
-          <p class="eyebrow">
-            Sistema de debate asistido
-          </p>
-
-          <h1>
-            Generador y evaluador Toulmin
-          </h1>
+          <p class="eyebrow">Sistema de debate asistido</p>
+          <h1>Generador y evaluador Toulmin</h1>
         </div>
 
         <div class="status-pill" id="apiStatus">
+          <span class="status-dot" aria-hidden="true"></span>
           Conectando
         </div>
-
       </header>
 
       <section class="composer" aria-label="Crear debate">
-
-        <label for="topicInput">
-          Tema del debate
-        </label>
+        <div class="composer-copy">
+          <label for="topicInput">Tema del debate</label>
+          <p>Define el tema y la cantidad de rondas para iniciar el intercambio argumentativo.</p>
+        </div>
 
         <div class="composer-row">
-
           <input id="topicInput" type="text" placeholder="Ej. Se debe regular la IA en el ambito estudiantil" />
 
           <select id="roundsInput" aria-label="Cantidad de rondas">
-
             <option value="1">1 ronda</option>
             <option value="2">2 rondas</option>
             <option value="3" selected>3 rondas</option>
             <option value="4">4 rondas</option>
             <option value="5">5 rondas</option>
-
           </select>
 
-          <button id="generateBtn" type="button">
+          <button class="btn btn-primary" id="generateBtn" type="button">
+            <span class="btn-icon" aria-hidden="true">+</span>
             Generar debate
           </button>
-
         </div>
-
       </section>
 
       <section class="detail" id="detail">
-
         <div class="empty-state">
-
-          <h2>
-            Selecciona o genera un debate
-          </h2>
-
-          <p>
-            El debate se mostrará en formato de intercambio entre proponente y oponente.
-          </p>
-
+          <span class="empty-icon" aria-hidden="true">D</span>
+          <h2>Selecciona o genera un debate</h2>
+          <p>El intercambio entre proponente y oponente aparecera aqui con sus metricas y videos.</p>
         </div>
-
       </section>
-
     </section>
-
   </main>
 
-  <div class="toast" id="toast" role="status" aria-live="polite">
-  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <!-- ============================= -->
-  <!-- MODAL VIDEO -->
-  <!-- ============================= -->
-
-  <div id="videoModal" class="video-modal hidden">
-
+  <div id="videoModal" class="video-modal hidden" aria-hidden="true" role="dialog" aria-modal="true"
+    aria-labelledby="videoModalTitle">
     <div class="video-modal-content">
-
       <div class="video-header">
+        <div>
+          <p class="video-kicker">Sala de visualizacion</p>
+          <h2 id="videoModalTitle">Debate animado</h2>
+        </div>
 
-        <h2>
-          🎬 Debate Animado
-        </h2>
-
-        <button id="closeVideoModal" class="close-btn" type="button">
-          ✕
+        <button id="closeVideoModal" class="icon-btn close-btn" type="button" aria-label="Cerrar modal">
+          x
         </button>
-
       </div>
 
-      <div class="round-label">
-
-        <h3 id="videoRoundTitle">
-          Ronda 1
-        </h3>
-
+      <div class="meeting-toolbar">
+        <div>
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="videoRoundTitle">Ronda 1</span>
+        </div>
+        <span id="videoLayoutStatus">Video generado</span>
       </div>
 
-      <div class="video-grid">
-
-        <div class="video-card">
-
-          <h3>
-            👨‍🏫 Proponente
-          </h3>
-
-          <video id="proVideo" controls playsinline>
-          </video>
-
+      <div class="video-grid" id="videoGrid">
+        <div class="video-card" data-stance="pro">
+          <div class="participant-bar">
+            <span class="participant-avatar pro" aria-hidden="true">P</span>
+            <div>
+              <strong>Proponente</strong>
+              <span>Defensa de la tesis</span>
+            </div>
+          </div>
+          <video id="proVideo" controls playsinline></video>
+          <div class="video-placeholder">Video pendiente</div>
         </div>
 
-        <div class="video-card">
-
-          <h3>
-            👩‍🏫 Oponente
-          </h3>
-
-          <video id="contraVideo" controls playsinline>
-          </video>
-
+        <div class="video-card" data-stance="contra">
+          <div class="participant-bar">
+            <span class="participant-avatar contra" aria-hidden="true">O</span>
+            <div>
+              <strong>Oponente</strong>
+              <span>Contraste argumentativo</span>
+            </div>
+          </div>
+          <video id="contraVideo" controls playsinline></video>
+          <div class="video-placeholder">Video pendiente</div>
         </div>
-
       </div>
 
       <div class="video-controls">
-
-        <button id="previousRoundBtn" type="button">
-          ⬅ Ronda anterior
+        <button class="btn btn-secondary" id="previousRoundBtn" type="button">
+          <span class="btn-icon" aria-hidden="true">&lt;</span>
+          Ronda anterior
         </button>
 
-        <button id="nextRoundBtn" type="button">
-          Ronda siguiente ➜
+        <button class="btn btn-secondary" id="nextRoundBtn" type="button">
+          Ronda siguiente
+          <span class="btn-icon" aria-hidden="true">&gt;</span>
         </button>
-
       </div>
-
     </div>
-
   </div>
+
   <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-
   <script src="app.js"></script>
-
 </body>
 
 </html>

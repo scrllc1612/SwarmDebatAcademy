@@ -1,9 +1,10 @@
 const state = {
   debates: [],
   activeDebateId: null,
-  currentVideos: null,
   generatingRound: null,
   videoStage: {},
+  videoLibrary: {},
+  activeVideoRound: null,
 };
 
 const els = {
@@ -15,13 +16,28 @@ const els = {
   generateBtn: document.querySelector("#generateBtn"),
   refreshDebates: document.querySelector("#refreshDebates"),
   toast: document.querySelector("#toast"),
+  videoModal: document.querySelector("#videoModal"),
+  videoGrid: document.querySelector("#videoGrid"),
+  videoRoundTitle: document.querySelector("#videoRoundTitle"),
+  videoLayoutStatus: document.querySelector("#videoLayoutStatus"),
+  proVideo: document.querySelector("#proVideo"),
+  contraVideo: document.querySelector("#contraVideo"),
+  closeVideoModal: document.querySelector("#closeVideoModal"),
+  previousRoundBtn: document.querySelector("#previousRoundBtn"),
+  nextRoundBtn: document.querySelector("#nextRoundBtn"),
 };
 
-document.querySelector(".video-header h2").textContent = "Debate animado";
-document.querySelector("#closeVideoModal").textContent = "x";
-document.querySelectorAll(".video-card h3").forEach((title, index) => {
-  title.textContent = index === 0 ? "Proponente" : "Oponente";
-});
+const videoCards = {
+  pro: document.querySelector('[data-stance="pro"]'),
+  contra: document.querySelector('[data-stance="contra"]'),
+};
+
+const loadingMessages = {
+  loading: ["Cargando debate", "Recuperando argumentos y metricas guardadas."],
+  debate: ["Generando argumentos", "Los agentes estan construyendo el intercambio."],
+  evaluation: ["Evaluando consenso", "Calculando calidad Toulmin, coherencia y puntaje final."],
+  video: ["Preparando avatar", "Renderizando la intervencion seleccionada."],
+};
 
 function showToast(message) {
   els.toast.textContent = message;
@@ -29,11 +45,53 @@ function showToast(message) {
   window.setTimeout(() => els.toast.classList.remove("show"), 3200);
 }
 
-function setBusy(isBusy, message = "Procesando") {
+function setStatus(text, mode = "ok") {
+  els.apiStatus.innerHTML = `<span class="status-dot" aria-hidden="true"></span>${escapeHtml(text)}`;
+  els.apiStatus.className = `status-pill ${mode}`;
+}
+
+function setButtonLoading(button, isLoading) {
+  if (!button) {
+    return;
+  }
+
+  button.classList.toggle("is-loading", isLoading);
+  button.setAttribute("aria-busy", String(isLoading));
+}
+
+function renderLoadingPanel(kind) {
+  const [title, copy] = loadingMessages[kind] || loadingMessages.loading;
+  els.detail.insertAdjacentHTML(
+    "afterbegin",
+    `
+      <div class="loading-panel" id="loadingPanel">
+        <span class="loading-indicator" aria-hidden="true"></span>
+        <div>
+          <strong>${title}</strong>
+          <p>${copy}</p>
+        </div>
+      </div>
+    `
+  );
+}
+
+function removeLoadingPanel() {
+  document.querySelector("#loadingPanel")?.remove();
+}
+
+function setBusy(isBusy, message = "Procesando", kind = "loading") {
   els.generateBtn.disabled = isBusy;
   els.refreshDebates.disabled = isBusy;
-  els.apiStatus.textContent = isBusy ? message : "Conectado";
-  els.apiStatus.className = "status-pill ok";
+  setButtonLoading(els.generateBtn, isBusy && kind === "debate");
+  setButtonLoading(els.refreshDebates, isBusy && kind === "loading");
+  setStatus(isBusy ? message : "Conectado", isBusy ? "loading" : "ok");
+
+  if (isBusy && ["debate", "evaluation", "video"].includes(kind)) {
+    removeLoadingPanel();
+    renderLoadingPanel(kind);
+  } else if (!isBusy) {
+    removeLoadingPanel();
+  }
 }
 
 function setRoundVideoBusy(button, isBusy) {
@@ -42,7 +100,13 @@ function setRoundVideoBusy(button, isBusy) {
   }
 
   button.disabled = isBusy;
-  button.textContent = isBusy ? "Generando ronda..." : "Generar ronda";
+  setButtonLoading(button, isBusy);
+  if (isBusy) {
+    button.dataset.previousLabel = button.textContent;
+    button.innerHTML = `<span class="btn-icon" aria-hidden="true">...</span> Generando video`;
+  } else {
+    updateVideoButton(button, Number(button.dataset.round));
+  }
 }
 
 function formatScore(value) {
@@ -61,11 +125,23 @@ function escapeHtml(value = "") {
     .replaceAll("'", "&#039;");
 }
 
+function videoKey(debateId, roundNumber) {
+  return `${debateId}:${roundNumber}`;
+}
+
+function stageKey(roundNumber) {
+  return `${state.activeDebateId || "active"}:${roundNumber}`;
+}
+
+function getVideoSlot(debateId, roundNumber) {
+  const key = videoKey(debateId, roundNumber);
+  if (!state.videoLibrary[key]) {
+    state.videoLibrary[key] = {};
+  }
+  return state.videoLibrary[key];
+}
+
 async function api(path, options = {}) {
-
-  console.log("Path:", path);
-  console.log("Options:", options);
-
   const response = await fetch(path, {
     headers: {
       "Content-Type": "application/json",
@@ -81,6 +157,7 @@ async function api(path, options = {}) {
 
   return response.json();
 }
+
 function renderDebateList() {
   if (!state.debates.length) {
     els.debateList.innerHTML = `<p class="meta-line">Aun no hay debates guardados.</p>`;
@@ -94,7 +171,7 @@ function renderDebateList() {
       return `
         <button class="debate-item${activeClass}" type="button" data-id="${escapeHtml(debate.debate_id)}">
           <strong>${escapeHtml(debate.topic)}</strong>
-          <span>${debate.total_rounds} rondas - ${status}</span>
+          <span>${debate.total_rounds} rondas &middot; ${status}</span>
         </button>
       `;
     })
@@ -124,7 +201,7 @@ function metricCards(evaluation) {
   `;
 }
 
-function scoreRows(metrics) {
+function scoreRows(metrics = {}) {
   const labels = [
     ["argument_score_100", "Score Toulmin"],
     ["claim_quality", "Claim"],
@@ -173,9 +250,29 @@ function moderatorBlock(summary) {
 
   return `
     <aside class="moderator">
-      <strong>Moderador</strong>
-      <p>${escapeHtml(summary.main_conflict || summary.pro_main_point || "")}</p>
+      <div>
+        <strong>Moderador</strong>
+        <p>${escapeHtml(summary.main_conflict || summary.pro_main_point || "")}</p>
+      </div>
     </aside>
+  `;
+}
+
+function messageBlock(type, roundNumber, text) {
+  const isPro = type === "pro";
+  const speaker = isPro ? "Proponente" : "Oponente";
+  const initial = isPro ? "P" : "O";
+  return `
+    <section class="message ${type}">
+      <div class="speaker">
+        <div class="speaker-main">
+          <span class="avatar ${type}" aria-hidden="true">${initial}</span>
+          <span>${speaker}</span>
+        </div>
+        <span class="round-chip">Ronda ${roundNumber}</span>
+      </div>
+      <p>${escapeHtml(text)}</p>
+    </section>
   `;
 }
 
@@ -185,34 +282,20 @@ function renderDebate(debate) {
     (debate.round_metrics || []).map((item) => [item.round_number, item])
   );
 
+  state.activeDebateId = metadata.debate_id || state.activeDebateId;
+
   const rounds = (debate.rounds || [])
     .map((round) => {
       const pro = round.pro_argument || {};
       const contra = round.contra_argument || {};
       return `
-        <article class="round">
+        <article class="round" data-round="${round.round_number}">
           <div class="round-title">Ronda ${round.round_number}</div>
-          <section class="message pro">
-            <div class="speaker pro">
-              <span>Proponente</span>
-              <span>Ronda ${round.round_number}</span>
-            </div>
-            <p>${escapeHtml(pro.speech || pro.claim || "")}</p>
-          </section>
-          <section class="message contra">
-            <div class="speaker contra">
-              <span>Oponente</span>
-              <span>Ronda ${round.round_number}</span>
-            </div>
-            <p>${escapeHtml(contra.speech || contra.claim || "")}</p>
-          </section>
+          ${messageBlock("pro", round.round_number, pro.speech || pro.claim || "")}
+          ${messageBlock("contra", round.round_number, contra.speech || contra.claim || "")}
           ${moderatorBlock(round.moderator_summary)}
           ${roundMetricBlock(metricsByRound.get(round.round_number))}
-          <button
-            class="video-btn"
-            data-round="${round.round_number}">
-            🎬 Ver ronda animada
-          </button>
+          <button class="video-btn" data-round="${round.round_number}" type="button"></button>
         </article>
       `;
     })
@@ -222,9 +305,10 @@ function renderDebate(debate) {
     <div class="debate-header">
       <div>
         <h2>${escapeHtml(metadata.topic || "Debate sin tema")}</h2>
-        <p class="meta-line">ID: ${escapeHtml(metadata.debate_id || "")} - ${metadata.total_rounds || 0} rondas</p>
+        <p class="meta-line">ID: ${escapeHtml(metadata.debate_id || "")} &middot; ${metadata.total_rounds || 0} rondas</p>
       </div>
-      <button class="primary-action" id="evaluateBtn" type="button">
+      <button class="btn btn-primary" id="evaluateBtn" type="button">
+        <span class="btn-icon" aria-hidden="true">OK</span>
         ${debate.evaluation ? "Reevaluar debate" : "Evaluar debate"}
       </button>
     </div>
@@ -235,28 +319,19 @@ function renderDebate(debate) {
   document.querySelector("#evaluateBtn").addEventListener("click", () => {
     evaluateDebate(metadata.debate_id);
   });
+
   document.querySelectorAll(".video-btn").forEach((button) => {
-
     const round = Number(button.dataset.round);
+    const key = stageKey(round);
 
-    if (!state.videoStage[round]) {
-      state.videoStage[round] = "pro";
+    if (!state.videoStage[key]) {
+      state.videoStage[key] = "pro";
     }
 
     updateVideoButton(button, round);
-
-    button.type = "button";
-
     button.addEventListener("click", () => {
-
-      generateRoundVideo(
-        metadata.debate_id,
-        round,
-        button
-      );
-
+      generateRoundVideo(metadata.debate_id, round, button);
     });
-
   });
 }
 
@@ -266,7 +341,7 @@ async function loadDebates() {
 }
 
 async function loadDebate(debateId) {
-  setBusy(true, "Cargando");
+  setBusy(true, "Cargando", "loading");
   try {
     const debate = await api(`/api/debates/${debateId}`);
     state.activeDebateId = debateId;
@@ -289,7 +364,7 @@ async function generateDebate() {
     return;
   }
 
-  setBusy(true, "Generando");
+  setBusy(true, "Generando argumentos", "debate");
   try {
     const debate = await api("/api/debates", {
       method: "POST",
@@ -312,7 +387,10 @@ async function evaluateDebate(debateId) {
     return;
   }
 
-  setBusy(true, "Evaluando");
+  const evaluateBtn = document.querySelector("#evaluateBtn");
+  setButtonLoading(evaluateBtn, true);
+  evaluateBtn.disabled = true;
+  setBusy(true, "Evaluando consenso", "evaluation");
   try {
     const debate = await api(`/api/debates/${debateId}/evaluate`, {
       method: "POST",
@@ -329,245 +407,145 @@ async function evaluateDebate(debateId) {
   }
 }
 
-async function generateRoundVideo(
-  debateId,
-  roundNumber,
-  button,
-) {
-  console.log("=== NUEVA generateRoundVideo ===");
-
+async function generateRoundVideo(debateId, roundNumber, button) {
   if (state.generatingRound) {
     showToast("Ya se esta generando un video.");
     return;
   }
 
   state.generatingRound = roundNumber;
-
   setRoundVideoBusy(button, true);
-  setBusy(true, "Generando video...");
+  setBusy(true, "Preparando avatar", "video");
 
   try {
-
-    const stage = state.videoStage[roundNumber] || "pro";
-
+    const key = stageKey(roundNumber);
+    const stage = state.videoStage[key] || "pro";
     const endpoint =
       stage === "pro"
         ? `/api/debates/${debateId}/rounds/${roundNumber}/video/pro`
         : `/api/debates/${debateId}/rounds/${roundNumber}/video/contra`;
-
-    console.log("Stage:", stage);
-    console.log("Endpoint generado:", endpoint);
 
     const response = await api(endpoint, {
       method: "POST",
     });
 
     if (response.eta) {
-
-      setBusy(
-        true,
-        `Renderizando video (${Math.ceil(response.eta)} s)...`
+      setStatus(`Renderizando video (${Math.ceil(response.eta)} s)`, "loading");
+      await new Promise((resolve) =>
+        setTimeout(resolve, (Math.ceil(response.eta) + 2) * 1000)
       );
-
-      await new Promise(resolve =>
-        setTimeout(
-          resolve,
-          (Math.ceil(response.eta) + 2) * 1000
-        )
-      );
-
     }
 
-    openVideoModal(response, roundNumber);
+    const slot = getVideoSlot(debateId, roundNumber);
+    slot[response.stance] = response.hls;
 
-    if (stage === "pro") {
+    openVideoModal(response, roundNumber, debateId);
 
-      state.videoStage[roundNumber] = "contra";
-
-    } else {
-
-      state.videoStage[roundNumber] = "done";
-
-    }
-
+    state.videoStage[key] = stage === "pro" ? "contra" : "done";
     updateVideoButton(button, roundNumber);
-
     showToast("Video generado correctamente.");
-
-  }
-
-  catch (error) {
-
-    console.error(error);
-
+  } catch (error) {
     showToast(error.message);
-
-  }
-
-  finally {
-
+  } finally {
     state.generatingRound = null;
-
     setRoundVideoBusy(button, false);
-
     setBusy(false);
-
   }
-
 }
 
 async function bootstrap() {
   try {
     await api("/api/health");
-    els.apiStatus.textContent = "Conectado";
-    els.apiStatus.className = "status-pill ok";
+    setStatus("Conectado", "ok");
     await loadDebates();
   } catch (error) {
-    els.apiStatus.textContent = "API no disponible";
-    els.apiStatus.className = "status-pill error";
+    setStatus("API no disponible", "error");
     showToast("Inicia FastAPI para conectar el frontend.");
   }
 }
 
-els.generateBtn.addEventListener("click", generateDebate);
-els.refreshDebates.addEventListener("click", loadDebates);
-els.topicInput.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") {
-    generateDebate();
-  }
-});
-els.debateList.addEventListener("click", (event) => {
-  const item = event.target.closest("[data-id]");
-  if (item) {
-    loadDebate(item.dataset.id);
-  }
-});
-
-bootstrap();
-
-function openVideoModal(response, roundNumber) {
-
-  const modal = document.querySelector("#videoModal");
-
-  modal.classList.remove("hidden");
-  modal.setAttribute("aria-hidden", "false");
-
-  document.querySelector("#videoRoundTitle").textContent =
-    `Ronda ${roundNumber}`;
-
-  const proVideo = document.querySelector("#proVideo");
-  const contraVideo = document.querySelector("#contraVideo");
-
-  const proContainer = proVideo.parentElement;
-  const contraContainer = contraVideo.parentElement;
-
-  proVideo.pause();
-  contraVideo.pause();
-
-  if (proVideo._hls) {
-    proVideo._hls.destroy();
-    proVideo._hls = null;
-  }
-
-  if (contraVideo._hls) {
-    contraVideo._hls.destroy();
-    contraVideo._hls = null;
-  }
-
-  proVideo.removeAttribute("src");
-  contraVideo.removeAttribute("src");
-
-  if (response.stance === "pro") {
-
-    proContainer.style.display = "";
-
-    contraContainer.style.display = "none";
-
-    loadHlsVideo(
-      proVideo,
-      response.hls,
-    );
-
-  }
-
-  else {
-
-    contraContainer.style.display = "";
-
-    proContainer.style.display = "none";
-
-    loadHlsVideo(
-      contraVideo,
-      response.hls,
-    );
-
-  }
-
-}
-
-
-function closeVideoModal() {
-
-  const modal = document.querySelector("#videoModal");
-
-  const proVideo = document.querySelector("#proVideo");
-  const contraVideo = document.querySelector("#contraVideo");
-
-  const proContainer = proVideo.parentElement;
-  const contraContainer = contraVideo.parentElement;
-
-  [proVideo, contraVideo].forEach(video => {
-
-    video.pause();
-
-    if (video._hls) {
-      video._hls.destroy();
-      video._hls = null;
-    }
-
-    video.removeAttribute("src");
-    video.load();
-
-  });
-
-  proContainer.style.display = "";
-  contraContainer.style.display = "";
-
-  modal.classList.add("hidden");
-  modal.setAttribute("aria-hidden", "true");
-
-}
-
 function updateVideoButton(button, round) {
-
-  const stage = state.videoStage[round];
+  const stage = state.videoStage[stageKey(round)];
 
   switch (stage) {
-
     case "pro":
-      button.textContent = "🎥 Ver Proponente";
+      button.innerHTML = `<span class="btn-icon" aria-hidden="true">&gt;</span> Generar proponente`;
+      button.disabled = false;
       break;
-
     case "contra":
-      button.textContent = "🎥 Ver Oponente";
+      button.innerHTML = `<span class="btn-icon" aria-hidden="true">&gt;</span> Generar oponente`;
+      button.disabled = false;
       break;
-
     case "done":
-      button.textContent = "✅ Videos generados";
+      button.innerHTML = `<span class="btn-icon" aria-hidden="true">OK</span> Videos generados`;
       button.disabled = true;
       break;
-
     default:
-      button.textContent = "🎥 Ver Proponente";
+      button.innerHTML = `<span class="btn-icon" aria-hidden="true">&gt;</span> Generar proponente`;
+      button.disabled = false;
+  }
+}
 
+function clearVideo(videoElement) {
+  videoElement.pause();
+
+  if (videoElement._hls) {
+    videoElement._hls.destroy();
+    videoElement._hls = null;
   }
 
+  videoElement.removeAttribute("src");
+  videoElement.load();
+}
+
+function setVideoCardState(stance, hasVideo, visible) {
+  const card = videoCards[stance];
+  card.classList.toggle("has-video", hasVideo);
+  card.classList.toggle("is-hidden", !visible);
+}
+
+function openVideoModal(response, roundNumber, debateId = state.activeDebateId) {
+  const slot = getVideoSlot(debateId, roundNumber);
+  const hasPro = Boolean(slot.pro);
+  const hasContra = Boolean(slot.contra);
+  const hasBoth = hasPro && hasContra;
+
+  state.activeVideoRound = roundNumber;
+  els.videoModal.classList.remove("hidden");
+  els.videoModal.setAttribute("aria-hidden", "false");
+  els.videoRoundTitle.textContent = `Ronda ${roundNumber}`;
+  els.videoLayoutStatus.textContent = hasBoth ? "Dos participantes" : "Un participante";
+  els.videoGrid.classList.toggle("single", !hasBoth);
+
+  clearVideo(els.proVideo);
+  clearVideo(els.contraVideo);
+
+  setVideoCardState("pro", hasPro, hasPro || response.stance === "pro");
+  setVideoCardState("contra", hasContra, hasContra || response.stance === "contra");
+
+  if (hasPro) {
+    loadHlsVideo(els.proVideo, slot.pro);
+  }
+
+  if (hasContra) {
+    loadHlsVideo(els.contraVideo, slot.contra);
+  }
+
+  els.closeVideoModal.focus();
+}
+
+function closeVideoModal() {
+  clearVideo(els.proVideo);
+  clearVideo(els.contraVideo);
+  setVideoCardState("pro", false, true);
+  setVideoCardState("contra", false, true);
+  els.videoModal.classList.add("hidden");
+  els.videoModal.setAttribute("aria-hidden", "true");
 }
 
 function loadHlsVideo(videoElement, hlsUrl) {
-
   if (!hlsUrl) {
-    showToast("No se recibió la URL del video.");
+    showToast("No se recibio la URL del video.");
     return;
   }
 
@@ -576,15 +554,13 @@ function loadHlsVideo(videoElement, hlsUrl) {
     videoElement._hls = null;
   }
 
-  if (Hls.isSupported()) {
-
+  if (window.Hls && Hls.isSupported()) {
     const hls = new Hls({
       enableWorker: true,
       lowLatencyMode: true,
     });
 
     hls.loadSource(hlsUrl);
-
     hls.attachMedia(videoElement);
 
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
@@ -592,42 +568,27 @@ function loadHlsVideo(videoElement, hlsUrl) {
     });
 
     hls.on(Hls.Events.ERROR, (_, data) => {
-
-      console.error("HLS Error:", data);
-
-      if (data.fatal) {
-
-        switch (data.type) {
-
-          case Hls.ErrorTypes.NETWORK_ERROR:
-            console.error("Error de red HLS");
-            hls.startLoad();
-            break;
-
-          case Hls.ErrorTypes.MEDIA_ERROR:
-            console.error("Error de media HLS");
-            hls.recoverMediaError();
-            break;
-
-          default:
-            hls.destroy();
-            showToast("No se pudo reproducir el video.");
-            break;
-
-        }
-
+      if (!data.fatal) {
+        return;
       }
 
+      switch (data.type) {
+        case Hls.ErrorTypes.NETWORK_ERROR:
+          hls.startLoad();
+          break;
+        case Hls.ErrorTypes.MEDIA_ERROR:
+          hls.recoverMediaError();
+          break;
+        default:
+          hls.destroy();
+          showToast("No se pudo reproducir el video.");
+          break;
+      }
     });
 
     videoElement._hls = hls;
-
-  }
-
-  else if (videoElement.canPlayType("application/vnd.apple.mpegurl")) {
-
+  } else if (videoElement.canPlayType("application/vnd.apple.mpegurl")) {
     videoElement.src = hlsUrl;
-
     videoElement.addEventListener(
       "loadedmetadata",
       () => {
@@ -635,13 +596,40 @@ function loadHlsVideo(videoElement, hlsUrl) {
       },
       { once: true }
     );
-
-  }
-
-  else {
-
+  } else {
     showToast("Este navegador no soporta HLS.");
-
   }
-
 }
+
+els.generateBtn.addEventListener("click", generateDebate);
+els.refreshDebates.addEventListener("click", loadDebates);
+els.closeVideoModal.addEventListener("click", closeVideoModal);
+els.previousRoundBtn.addEventListener("click", () => showToast("Usa los botones de cada ronda para generar su video."));
+els.nextRoundBtn.addEventListener("click", () => showToast("Usa los botones de cada ronda para generar su video."));
+
+els.topicInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    generateDebate();
+  }
+});
+
+els.debateList.addEventListener("click", (event) => {
+  const item = event.target.closest("[data-id]");
+  if (item) {
+    loadDebate(item.dataset.id);
+  }
+});
+
+els.videoModal.addEventListener("click", (event) => {
+  if (event.target === els.videoModal) {
+    closeVideoModal();
+  }
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !els.videoModal.classList.contains("hidden")) {
+    closeVideoModal();
+  }
+});
+
+bootstrap();
