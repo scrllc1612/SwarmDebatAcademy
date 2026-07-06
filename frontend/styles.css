@@ -177,7 +177,6 @@ p {
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-  line-clamp: 2;
 }
 
 .debate-item span {
@@ -872,7 +871,7 @@ button:disabled,
   gap: 8px;
 }
 
-.meeting-toolbar > span {
+.meeting-toolbar>span {
   color: var(--muted);
   font-size: 0.86rem;
 }
