@@ -1,68 +1,180 @@
 <!doctype html>
 <html lang="es">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Evaluador de debates academicos</title>
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <aside class="sidebar" aria-label="Debates guardados">
-        <div class="brand">
-          <span class="brand-mark">D</span>
-          <div>
-            <strong>Debates</strong>
-            <span>Repositorio academico</span>
-          </div>
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Evaluador de debates academicos</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+
+  <main class="app-shell">
+
+    <aside class="sidebar" aria-label="Debates guardados">
+
+      <div class="brand">
+        <span class="brand-mark">D</span>
+        <div>
+          <strong>Debates</strong>
+          <span>Repositorio academico</span>
+        </div>
+      </div>
+
+      <button class="secondary-action" id="refreshDebates" type="button">
+        Actualizar lista
+      </button>
+
+      <div class="debate-list" id="debateList">
+      </div>
+
+    </aside>
+
+    <section class="workspace">
+
+      <header class="topbar">
+
+        <div>
+          <p class="eyebrow">
+            Sistema de debate asistido
+          </p>
+
+          <h1>
+            Generador y evaluador Toulmin
+          </h1>
         </div>
 
-        <button class="secondary-action" id="refreshDebates" type="button">
-          Actualizar lista
+        <div class="status-pill" id="apiStatus">
+          Conectando
+        </div>
+
+      </header>
+
+      <section class="composer" aria-label="Crear debate">
+
+        <label for="topicInput">
+          Tema del debate
+        </label>
+
+        <div class="composer-row">
+
+          <input id="topicInput" type="text" placeholder="Ej. Se debe regular la IA en el ambito estudiantil" />
+
+          <select id="roundsInput" aria-label="Cantidad de rondas">
+
+            <option value="1">1 ronda</option>
+            <option value="2">2 rondas</option>
+            <option value="3" selected>3 rondas</option>
+            <option value="4">4 rondas</option>
+            <option value="5">5 rondas</option>
+
+          </select>
+
+          <button id="generateBtn" type="button">
+            Generar debate
+          </button>
+
+        </div>
+
+      </section>
+
+      <section class="detail" id="detail">
+
+        <div class="empty-state">
+
+          <h2>
+            Selecciona o genera un debate
+          </h2>
+
+          <p>
+            El debate se mostrará en formato de intercambio entre proponente y oponente.
+          </p>
+
+        </div>
+
+      </section>
+
+    </section>
+
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite">
+  </div>
+
+  <!-- ============================= -->
+  <!-- MODAL VIDEO -->
+  <!-- ============================= -->
+
+  <div id="videoModal" class="video-modal hidden">
+
+    <div class="video-modal-content">
+
+      <div class="video-header">
+
+        <h2>
+          🎬 Debate Animado
+        </h2>
+
+        <button id="closeVideoModal" class="close-btn" type="button">
+          ✕
         </button>
 
-        <div class="debate-list" id="debateList"></div>
-      </aside>
+      </div>
 
-      <section class="workspace">
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">Sistema de debate asistido</p>
-            <h1>Generador y evaluador Toulmin</h1>
-          </div>
-          <div class="status-pill" id="apiStatus">Conectando</div>
-        </header>
+      <div class="round-label">
 
-        <section class="composer" aria-label="Crear debate">
-          <label for="topicInput">Tema del debate</label>
-          <div class="composer-row">
-            <input
-              id="topicInput"
-              type="text"
-              placeholder="Ej. Se debe regular la IA en el ambito estudiantil"
-            />
-            <select id="roundsInput" aria-label="Cantidad de rondas">
-              <option value="1">1 ronda</option>
-              <option value="2">2 rondas</option>
-              <option value="3" selected>3 rondas</option>
-              <option value="4">4 rondas</option>
-              <option value="5">5 rondas</option>
-            </select>
-            <button id="generateBtn" type="button">Generar debate</button>
-          </div>
-        </section>
+        <h3 id="videoRoundTitle">
+          Ronda 1
+        </h3>
 
-        <section class="detail" id="detail">
-          <div class="empty-state">
-            <h2>Selecciona o genera un debate</h2>
-            <p>El debate se mostrara en formato de intercambio entre proponente y oponente.</p>
-          </div>
-        </section>
-      </section>
-    </main>
+      </div>
 
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+      <div class="video-grid">
 
-    <script src="app.js"></script>
-  </body>
+        <div class="video-card">
+
+          <h3>
+            👨‍🏫 Proponente
+          </h3>
+
+          <video id="proVideo" controls playsinline>
+          </video>
+
+        </div>
+
+        <div class="video-card">
+
+          <h3>
+            👩‍🏫 Oponente
+          </h3>
+
+          <video id="contraVideo" controls playsinline>
+          </video>
+
+        </div>
+
+      </div>
+
+      <div class="video-controls">
+
+        <button id="previousRoundBtn" type="button">
+          ⬅ Ronda anterior
+        </button>
+
+        <button id="nextRoundBtn" type="button">
+          Ronda siguiente ➜
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+
+  <script src="app.js"></script>
+
+</body>
+
 </html>

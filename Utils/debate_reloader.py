@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Any
 
 from Models.toulmin_models import DebateState, DebateRound, ToulminArgument
 from Models.moderator_models import DebateSummary
@@ -7,7 +8,38 @@ from Models.moderator_models import DebateSummary
 
 class SavedDebateLoader:
     @staticmethod
-    def load_as_debate_state(file_path: str | Path) -> DebateState:
+    def _argument_from_dict(argument_data: dict[str, Any]) -> ToulminArgument:
+        return ToulminArgument(
+            stance=argument_data["stance"],
+            round_number=argument_data["round_number"],
+            claim=argument_data["claim"],
+            data=argument_data["data"],
+            warrant=argument_data["warrant"],
+            backing=argument_data["backing"],
+            rebuttal=argument_data["rebuttal"],
+            speech=argument_data["speech"],
+        )
+
+    @staticmethod
+    def _summary_from_dict(summary_data: dict[str, Any]) -> DebateSummary:
+        return DebateSummary(
+            pro_main_point=summary_data["pro_main_point"],
+            contra_main_point=summary_data["contra_main_point"],
+            main_conflict=summary_data["main_conflict"],
+            unresolved_issue=summary_data["unresolved_issue"],
+        )
+
+    @classmethod
+    def _round_from_dict(cls, round_data: dict[str, Any]) -> DebateRound:
+        return DebateRound(
+            round_number=round_data["round_number"],
+            pro_argument=cls._argument_from_dict(round_data["pro_argument"]),
+            contra_argument=cls._argument_from_dict(round_data["contra_argument"]),
+            moderator_summary=cls._summary_from_dict(round_data["moderator_summary"]),
+        )
+
+    @classmethod
+    def load_as_debate_state(cls, file_path: str | Path) -> DebateState:
         file_path = Path(file_path)
 
         with open(file_path, "r", encoding="utf-8") as f:
@@ -16,46 +48,10 @@ class SavedDebateLoader:
         metadata = data["metadata"]
         rounds_data = data["rounds"]
 
-        rounds = []
-
-        for round_item in rounds_data:
-            pro = ToulminArgument(
-                stance=round_item["pro_argument"]["stance"],
-                round_number=round_item["pro_argument"]["round_number"],
-                claim=round_item["pro_argument"]["claim"],
-                data=round_item["pro_argument"]["data"],
-                warrant=round_item["pro_argument"]["warrant"],
-                backing=round_item["pro_argument"]["backing"],
-                rebuttal=round_item["pro_argument"]["rebuttal"],
-                speech=round_item["pro_argument"]["speech"],
-            )
-
-            contra = ToulminArgument(
-                stance=round_item["contra_argument"]["stance"],
-                round_number=round_item["contra_argument"]["round_number"],
-                claim=round_item["contra_argument"]["claim"],
-                data=round_item["contra_argument"]["data"],
-                warrant=round_item["contra_argument"]["warrant"],
-                backing=round_item["contra_argument"]["backing"],
-                rebuttal=round_item["contra_argument"]["rebuttal"],
-                speech=round_item["contra_argument"]["speech"],
-            )
-
-            summary = DebateSummary(
-                pro_main_point=round_item["moderator_summary"]["pro_main_point"],
-                contra_main_point=round_item["moderator_summary"]["contra_main_point"],
-                main_conflict=round_item["moderator_summary"]["main_conflict"],
-                unresolved_issue=round_item["moderator_summary"]["unresolved_issue"],
-            )
-
-            debate_round = DebateRound(
-                round_number=round_item["round_number"],
-                pro_argument=pro,
-                contra_argument=contra,
-                moderator_summary=summary,
-            )
-
-            rounds.append(debate_round)
+        rounds = [
+            cls._round_from_dict(round_item)
+            for round_item in rounds_data
+        ]
 
         debate = DebateState(
             topic=metadata["topic"],

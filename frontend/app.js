@@ -1,6 +1,9 @@
 const state = {
   debates: [],
   activeDebateId: null,
+  currentVideos: null,
+  generatingRound: null,
+  videoStage: {},
 };
 
 const els = {
@@ -14,6 +17,12 @@ const els = {
   toast: document.querySelector("#toast"),
 };
 
+document.querySelector(".video-header h2").textContent = "Debate animado";
+document.querySelector("#closeVideoModal").textContent = "x";
+document.querySelectorAll(".video-card h3").forEach((title, index) => {
+  title.textContent = index === 0 ? "Proponente" : "Oponente";
+});
+
 function showToast(message) {
   els.toast.textContent = message;
   els.toast.classList.add("show");
@@ -25,6 +34,15 @@ function setBusy(isBusy, message = "Procesando") {
   els.refreshDebates.disabled = isBusy;
   els.apiStatus.textContent = isBusy ? message : "Conectado";
   els.apiStatus.className = "status-pill ok";
+}
+
+function setRoundVideoBusy(button, isBusy) {
+  if (!button) {
+    return;
+  }
+
+  button.disabled = isBusy;
+  button.textContent = isBusy ? "Generando ronda..." : "Generar ronda";
 }
 
 function formatScore(value) {
@@ -44,6 +62,10 @@ function escapeHtml(value = "") {
 }
 
 async function api(path, options = {}) {
+
+  console.log("Path:", path);
+  console.log("Options:", options);
+
   const response = await fetch(path, {
     headers: {
       "Content-Type": "application/json",
@@ -59,7 +81,6 @@ async function api(path, options = {}) {
 
   return response.json();
 }
-
 function renderDebateList() {
   if (!state.debates.length) {
     els.debateList.innerHTML = `<p class="meta-line">Aun no hay debates guardados.</p>`;
@@ -187,6 +208,11 @@ function renderDebate(debate) {
           </section>
           ${moderatorBlock(round.moderator_summary)}
           ${roundMetricBlock(metricsByRound.get(round.round_number))}
+          <button
+            class="video-btn"
+            data-round="${round.round_number}">
+            🎬 Ver ronda animada
+          </button>
         </article>
       `;
     })
@@ -208,6 +234,29 @@ function renderDebate(debate) {
 
   document.querySelector("#evaluateBtn").addEventListener("click", () => {
     evaluateDebate(metadata.debate_id);
+  });
+  document.querySelectorAll(".video-btn").forEach((button) => {
+
+    const round = Number(button.dataset.round);
+
+    if (!state.videoStage[round]) {
+      state.videoStage[round] = "pro";
+    }
+
+    updateVideoButton(button, round);
+
+    button.type = "button";
+
+    button.addEventListener("click", () => {
+
+      generateRoundVideo(
+        metadata.debate_id,
+        round,
+        button
+      );
+
+    });
+
   });
 }
 
@@ -280,6 +329,93 @@ async function evaluateDebate(debateId) {
   }
 }
 
+async function generateRoundVideo(
+  debateId,
+  roundNumber,
+  button,
+) {
+  console.log("=== NUEVA generateRoundVideo ===");
+
+  if (state.generatingRound) {
+    showToast("Ya se esta generando un video.");
+    return;
+  }
+
+  state.generatingRound = roundNumber;
+
+  setRoundVideoBusy(button, true);
+  setBusy(true, "Generando video...");
+
+  try {
+
+    const stage = state.videoStage[roundNumber] || "pro";
+
+    const endpoint =
+      stage === "pro"
+        ? `/api/debates/${debateId}/rounds/${roundNumber}/video/pro`
+        : `/api/debates/${debateId}/rounds/${roundNumber}/video/contra`;
+
+    console.log("Stage:", stage);
+    console.log("Endpoint generado:", endpoint);
+
+    const response = await api(endpoint, {
+      method: "POST",
+    });
+
+    if (response.eta) {
+
+      setBusy(
+        true,
+        `Renderizando video (${Math.ceil(response.eta)} s)...`
+      );
+
+      await new Promise(resolve =>
+        setTimeout(
+          resolve,
+          (Math.ceil(response.eta) + 2) * 1000
+        )
+      );
+
+    }
+
+    openVideoModal(response, roundNumber);
+
+    if (stage === "pro") {
+
+      state.videoStage[roundNumber] = "contra";
+
+    } else {
+
+      state.videoStage[roundNumber] = "done";
+
+    }
+
+    updateVideoButton(button, roundNumber);
+
+    showToast("Video generado correctamente.");
+
+  }
+
+  catch (error) {
+
+    console.error(error);
+
+    showToast(error.message);
+
+  }
+
+  finally {
+
+    state.generatingRound = null;
+
+    setRoundVideoBusy(button, false);
+
+    setBusy(false);
+
+  }
+
+}
+
 async function bootstrap() {
   try {
     await api("/api/health");
@@ -308,3 +444,204 @@ els.debateList.addEventListener("click", (event) => {
 });
 
 bootstrap();
+
+function openVideoModal(response, roundNumber) {
+
+  const modal = document.querySelector("#videoModal");
+
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+
+  document.querySelector("#videoRoundTitle").textContent =
+    `Ronda ${roundNumber}`;
+
+  const proVideo = document.querySelector("#proVideo");
+  const contraVideo = document.querySelector("#contraVideo");
+
+  const proContainer = proVideo.parentElement;
+  const contraContainer = contraVideo.parentElement;
+
+  proVideo.pause();
+  contraVideo.pause();
+
+  if (proVideo._hls) {
+    proVideo._hls.destroy();
+    proVideo._hls = null;
+  }
+
+  if (contraVideo._hls) {
+    contraVideo._hls.destroy();
+    contraVideo._hls = null;
+  }
+
+  proVideo.removeAttribute("src");
+  contraVideo.removeAttribute("src");
+
+  if (response.stance === "pro") {
+
+    proContainer.style.display = "";
+
+    contraContainer.style.display = "none";
+
+    loadHlsVideo(
+      proVideo,
+      response.hls,
+    );
+
+  }
+
+  else {
+
+    contraContainer.style.display = "";
+
+    proContainer.style.display = "none";
+
+    loadHlsVideo(
+      contraVideo,
+      response.hls,
+    );
+
+  }
+
+}
+
+
+function closeVideoModal() {
+
+  const modal = document.querySelector("#videoModal");
+
+  const proVideo = document.querySelector("#proVideo");
+  const contraVideo = document.querySelector("#contraVideo");
+
+  const proContainer = proVideo.parentElement;
+  const contraContainer = contraVideo.parentElement;
+
+  [proVideo, contraVideo].forEach(video => {
+
+    video.pause();
+
+    if (video._hls) {
+      video._hls.destroy();
+      video._hls = null;
+    }
+
+    video.removeAttribute("src");
+    video.load();
+
+  });
+
+  proContainer.style.display = "";
+  contraContainer.style.display = "";
+
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+
+}
+
+function updateVideoButton(button, round) {
+
+  const stage = state.videoStage[round];
+
+  switch (stage) {
+
+    case "pro":
+      button.textContent = "🎥 Ver Proponente";
+      break;
+
+    case "contra":
+      button.textContent = "🎥 Ver Oponente";
+      break;
+
+    case "done":
+      button.textContent = "✅ Videos generados";
+      button.disabled = true;
+      break;
+
+    default:
+      button.textContent = "🎥 Ver Proponente";
+
+  }
+
+}
+
+function loadHlsVideo(videoElement, hlsUrl) {
+
+  if (!hlsUrl) {
+    showToast("No se recibió la URL del video.");
+    return;
+  }
+
+  if (videoElement._hls) {
+    videoElement._hls.destroy();
+    videoElement._hls = null;
+  }
+
+  if (Hls.isSupported()) {
+
+    const hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: true,
+    });
+
+    hls.loadSource(hlsUrl);
+
+    hls.attachMedia(videoElement);
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      videoElement.play().catch(() => { });
+    });
+
+    hls.on(Hls.Events.ERROR, (_, data) => {
+
+      console.error("HLS Error:", data);
+
+      if (data.fatal) {
+
+        switch (data.type) {
+
+          case Hls.ErrorTypes.NETWORK_ERROR:
+            console.error("Error de red HLS");
+            hls.startLoad();
+            break;
+
+          case Hls.ErrorTypes.MEDIA_ERROR:
+            console.error("Error de media HLS");
+            hls.recoverMediaError();
+            break;
+
+          default:
+            hls.destroy();
+            showToast("No se pudo reproducir el video.");
+            break;
+
+        }
+
+      }
+
+    });
+
+    videoElement._hls = hls;
+
+  }
+
+  else if (videoElement.canPlayType("application/vnd.apple.mpegurl")) {
+
+    videoElement.src = hlsUrl;
+
+    videoElement.addEventListener(
+      "loadedmetadata",
+      () => {
+        videoElement.play().catch(() => { });
+      },
+      { once: true }
+    );
+
+  }
+
+  else {
+
+    showToast("Este navegador no soporta HLS.");
+
+  }
+
+}

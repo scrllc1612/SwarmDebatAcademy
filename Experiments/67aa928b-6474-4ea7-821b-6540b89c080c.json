@@ -101,71 +101,71 @@
         {
             "round_number": 1,
             "pro": {
-                "argument_score_100": 73.13,
-                "claim_quality": 88.73,
-                "data_relevance": 90.47,
-                "data_sufficiency": 83.45,
-                "warrant_strength": 69.65,
-                "backing_adequacy": 73.29,
-                "rebuttal_effectiveness": 39.77
+                "argument_score_100": 73.3,
+                "claim_quality": 88.19,
+                "data_relevance": 86.06,
+                "data_sufficiency": 82.3,
+                "warrant_strength": 69.59,
+                "backing_adequacy": 73.45,
+                "rebuttal_effectiveness": 46.27
             },
             "contra": {
-                "argument_score_100": 83.18,
-                "claim_quality": 87.64999999999999,
-                "data_relevance": 75.46000000000001,
-                "data_sufficiency": 78.53999999999999,
-                "warrant_strength": 85.97,
-                "backing_adequacy": 71.84,
-                "rebuttal_effectiveness": 93.91000000000001
+                "argument_score_100": 85.98,
+                "claim_quality": 90.21000000000001,
+                "data_relevance": 83.47,
+                "data_sufficiency": 81.43,
+                "warrant_strength": 88.62,
+                "backing_adequacy": 72.42,
+                "rebuttal_effectiveness": 92.86999999999999
             }
         },
         {
             "round_number": 2,
             "pro": {
-                "argument_score_100": 83.28,
-                "claim_quality": 81.76,
-                "data_relevance": 84.78999999999999,
-                "data_sufficiency": 79.16,
-                "warrant_strength": 83.94,
-                "backing_adequacy": 71.03,
-                "rebuttal_effectiveness": 91.44
+                "argument_score_100": 85.73,
+                "claim_quality": 81.35,
+                "data_relevance": 88.03999999999999,
+                "data_sufficiency": 80.9,
+                "warrant_strength": 89.35,
+                "backing_adequacy": 73.97,
+                "rebuttal_effectiveness": 92.57
             },
             "contra": {
-                "argument_score_100": 82.34,
-                "claim_quality": 79.83,
-                "data_relevance": 76.39,
-                "data_sufficiency": 86.09,
-                "warrant_strength": 83.17999999999999,
-                "backing_adequacy": 73.79,
-                "rebuttal_effectiveness": 90.77
+                "argument_score_100": 85.64,
+                "claim_quality": 80.57,
+                "data_relevance": 85.92,
+                "data_sufficiency": 89.2,
+                "warrant_strength": 87.17,
+                "backing_adequacy": 74.9,
+                "rebuttal_effectiveness": 90.35
             }
         },
         {
             "round_number": 3,
             "pro": {
-                "argument_score_100": 85.09,
-                "claim_quality": 82.31,
-                "data_relevance": 87.02,
-                "data_sufficiency": 77.10000000000001,
-                "warrant_strength": 89.53999999999999,
-                "backing_adequacy": 73.6,
-                "rebuttal_effectiveness": 92.51
+                "argument_score_100": 85.46,
+                "claim_quality": 83.00999999999999,
+                "data_relevance": 87.94,
+                "data_sufficiency": 78.13,
+                "warrant_strength": 89.52,
+                "backing_adequacy": 73.21,
+                "rebuttal_effectiveness": 92.36
             },
             "contra": {
-                "argument_score_100": 80.97,
-                "claim_quality": 78.86,
-                "data_relevance": 75.83,
-                "data_sufficiency": 77.27000000000001,
-                "warrant_strength": 82.11,
-                "backing_adequacy": 71.84,
-                "rebuttal_effectiveness": 93.89
+                "argument_score_100": 83.29,
+                "claim_quality": 79.52,
+                "data_relevance": 83.3,
+                "data_sufficiency": 80.21000000000001,
+                "warrant_strength": 82.17999999999999,
+                "backing_adequacy": 74.35000000000001,
+                "rebuttal_effectiveness": 93.97999999999999
             }
         }
     ],
     "evaluation": {
         "evaluator_version": "1.0",
-        "tqs": 81.33,
-        "sc": 79.8,
-        "debate_score": 81.1
+        "tqs": 83.23,
+        "sc": 84.78,
+        "debate_score": 83.47
     }
 }

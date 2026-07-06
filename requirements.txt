@@ -3,5 +3,6 @@ pydantic
 python-dotenv
 fastapi
 uvicorn
+requests
 numpy
 sentence-transformers

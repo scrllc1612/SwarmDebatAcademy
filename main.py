@@ -210,5 +210,129 @@ def evaluate_debate(debate_id: str) -> dict[str, Any]:
     return payload
 
 
+@app.post("/api/debates/{debate_id}/rounds/{round_number}/video/pro")
+def generate_pro_video(
+    debate_id: str,
+    round_number: int,
+) -> dict[str, Any]:
+
+    from Avatar.avatars.video_manager import VideoManager
+
+    debate = _load_saved_debate(debate_id)
+
+    round_data = next(
+        (
+            item
+            for item in debate.get("rounds", [])
+            if item.get("round_number") == round_number
+        ),
+        None,
+    )
+
+    if round_data is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Ronda no encontrada",
+        )
+
+    pro_argument = round_data.get("pro_argument") or {}
+
+    pro_text = (
+        pro_argument.get("speech")
+        or pro_argument.get("claim")
+        or ""
+    )
+
+    if not pro_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="El proponente no tiene texto.",
+        )
+
+    try:
+
+        video = VideoManager().generate_pro_video(
+            text=pro_text,
+        )
+
+    except Exception as error:
+
+        import traceback
+
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(error),
+        ) from error
+
+    return {
+        "round": round_number,
+        "stance": "pro",
+        **video,
+    }
+
+@app.post("/api/debates/{debate_id}/rounds/{round_number}/video/contra")
+def generate_contra_video(
+    debate_id: str,
+    round_number: int,
+) -> dict[str, Any]:
+
+    from Avatar.avatars.video_manager import VideoManager
+
+    debate = _load_saved_debate(debate_id)
+
+    round_data = next(
+        (
+            item
+            for item in debate.get("rounds", [])
+            if item.get("round_number") == round_number
+        ),
+        None,
+    )
+
+    if round_data is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Ronda no encontrada",
+        )
+
+    contra_argument = round_data.get("contra_argument") or {}
+
+    contra_text = (
+        contra_argument.get("speech")
+        or contra_argument.get("claim")
+        or ""
+    )
+
+    if not contra_text.strip():
+        raise HTTPException(
+            status_code=400,
+            detail="El oponente no tiene texto.",
+        )
+
+    try:
+
+        video = VideoManager().generate_contra_video(
+            text=contra_text,
+        )
+
+    except Exception as error:
+
+        import traceback
+
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=502,
+            detail=str(error),
+        ) from error
+
+    return {
+        "round": round_number,
+        "stance": "contra",
+        **video,
+    }
+
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
