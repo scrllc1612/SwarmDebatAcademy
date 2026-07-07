@@ -323,8 +323,13 @@ function renderDebate(debate) {
   document.querySelectorAll(".video-btn").forEach((button) => {
     const round = Number(button.dataset.round);
     const key = stageKey(round);
+    const slot = getVideoSlot(metadata.debate_id, round);
 
-    if (!state.videoStage[key]) {
+    if (slot.pro && slot.contra) {
+      state.videoStage[key] = "done";
+    } else if (slot.pro) {
+      state.videoStage[key] = "contra";
+    } else if (!state.videoStage[key]) {
       state.videoStage[key] = "pro";
     }
 
@@ -413,13 +418,19 @@ async function generateRoundVideo(debateId, roundNumber, button) {
     return;
   }
 
+  const key = stageKey(roundNumber);
+  const stage = state.videoStage[key] || "pro";
+
+  if (stage === "done") {
+    openVideoModal(null, roundNumber, debateId);
+    return;
+  }
+
   state.generatingRound = roundNumber;
   setRoundVideoBusy(button, true);
   setBusy(true, "Preparando avatar", "video");
 
   try {
-    const key = stageKey(roundNumber);
-    const stage = state.videoStage[key] || "pro";
     const endpoint =
       stage === "pro"
         ? `/api/debates/${debateId}/rounds/${roundNumber}/video/pro`
@@ -437,7 +448,7 @@ async function generateRoundVideo(debateId, roundNumber, button) {
     }
 
     const slot = getVideoSlot(debateId, roundNumber);
-    slot[response.stance] = response.hls;
+    slot[response.stance] = response;
 
     openVideoModal(response, roundNumber, debateId);
 
@@ -477,8 +488,8 @@ function updateVideoButton(button, round) {
       button.disabled = false;
       break;
     case "done":
-      button.innerHTML = `<span class="btn-icon" aria-hidden="true">OK</span> Videos generados`;
-      button.disabled = true;
+      button.innerHTML = `<span class="btn-icon" aria-hidden="true">▶</span> Ver ronda`;
+      button.disabled = false;
       break;
     default:
       button.innerHTML = `<span class="btn-icon" aria-hidden="true">&gt;</span> Generar proponente`;
@@ -520,15 +531,16 @@ function openVideoModal(response, roundNumber, debateId = state.activeDebateId) 
   clearVideo(els.proVideo);
   clearVideo(els.contraVideo);
 
-  setVideoCardState("pro", hasPro, hasPro || response.stance === "pro");
-  setVideoCardState("contra", hasContra, hasContra || response.stance === "contra");
+  const currentStance = response?.stance;
+  setVideoCardState("pro", hasPro, hasPro || currentStance === "pro");
+  setVideoCardState("contra", hasContra, hasContra || currentStance === "contra");
 
   if (hasPro) {
-    loadHlsVideo(els.proVideo, slot.pro);
+    loadHlsVideo(els.proVideo, slot.pro.hls || slot.pro);
   }
 
   if (hasContra) {
-    loadHlsVideo(els.contraVideo, slot.contra);
+    loadHlsVideo(els.contraVideo, slot.contra.hls || slot.contra);
   }
 
   els.closeVideoModal.focus();
